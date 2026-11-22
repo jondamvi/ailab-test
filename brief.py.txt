@@ -1,12 +1,9 @@
-# brief.py - draft the reflection brief from /workspace/evidence via Claude API
-import os, re, glob, collections, anthropic
-E = '/workspace/evidence'
-tpl = open(glob.glob('/workspace/*/reflection-brief-template.md')[0]).read()
-src = ''
-for p in glob.glob('/workspace/*/**/solution/**/*.py', recursive=True):
-    if '.venv' not in p:
-        src += open(p, errors='ignore').read()
-model = collections.Counter(re.findall(r'claude-(?:sonnet|opus|haiku|3)[a-z0-9-]*', src)).most_common(1)[0][0]
+# brief.py - draft the reflection brief from ~/evidence via Claude API
+import os, glob, anthropic
+H = os.path.expanduser('~')
+W = H + '/cd15315-Claude-AI-Engineer-Harness-Engineering'
+E = H + '/evidence'
+tpl = open(glob.glob(W + '/**/reflection-brief-template.md', recursive=True)[0]).read()
 ev = ''
 for p in sorted(glob.glob(E + '/system*/**/*', recursive=True)):
     if os.path.isfile(p):
@@ -17,7 +14,13 @@ prompt = ('Complete this reflection brief template. Answer every prompt in first
           '(system1/..., system2/...). Use only facts present in the evidence; where a fact is missing write [CHECK]. '
           'Part 2 answers must connect two or more systems. Output only the completed markdown.\n\n'
           '<template>\n' + tpl + '\n</template>\n<evidence>' + ev[:600000] + '\n</evidence>')
-r = anthropic.Anthropic().messages.create(model=model, max_tokens=8000,
-                                          messages=[{'role': 'user', 'content': prompt}])
+client = anthropic.Anthropic()
+for model in ('claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001'):
+    try:
+        r = client.messages.create(model=model, max_tokens=8000,
+                                   messages=[{'role': 'user', 'content': prompt}])
+        break
+    except anthropic.APIStatusError as err:
+        print('model', model, 'failed:', err.status_code)
 open(E + '/reflection-brief-template.md', 'w').write(r.content[0].text)
 print('model:', model, '| tokens in/out:', r.usage.input_tokens, r.usage.output_tokens)

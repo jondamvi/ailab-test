@@ -1,9 +1,10 @@
-
 #!/usr/bin/env bash
-# Capstone Tasks 1-6: venvs, tests, runs, evidence. Run: bash /workspace/run_all.sh
-E=/workspace/evidence
+# Capstone Tasks 1-6: venvs, tests, runs, evidence. Run: bash ~/run_all.sh
+W=$HOME/cd15315-Claude-AI-Engineer-Harness-Engineering
+E=$HOME/evidence
+rm -rf $E/system1 $E/system2 $E/system3 $E/system4
 mkdir -p $E/system1 $E/system2 $E/system3 $E/system4
-sol() { find /workspace -maxdepth 6 -type d -path "*/$1/solution" | head -1; }
+sol() { find "$W" -maxdepth 6 -type d -path "*/$1/solution" | head -1; }
 S1=$(sol 03-dynamic-decomposition)
 S2=$(sol 04-assemble-and-locate)
 S3=$(sol 04-plan-mode-and-explore-decision-doc)
@@ -52,20 +53,3 @@ prep "$S4" system4 && {
 
 cd $E && grep -H ' passed' system*/tests*.log
 cat system3/validator.log system4/hot_state_size.txt
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
