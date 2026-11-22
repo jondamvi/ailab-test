@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Capstone Tasks 1-6: venvs, tests, runs, evidence. Run: bash ~/run_all.sh
-# Venvs are created without ensurepip: pip is installed into each venv by the system pip.
+# Venvs use Python 3.11+ found/installed by uv (~/.uvenv); created without ensurepip,
+# pip is installed into each venv by that interpreter's own pip.
+PY=$(~/.uvenv/bin/uv python find '>=3.11') || { echo "No Python 3.11+ found - run the setup step first"; exit 1; }
+echo "Using $PY ($("$PY" --version))"
 W=$HOME/cd15315-Claude-AI-Engineer-Harness-Engineering
 E=$HOME/evidence
 rm -rf $E/system1 $E/system2 $E/system3 $E/system4
@@ -16,12 +19,12 @@ prep() {
   echo "=== $2: $1"
   cd "$1" || { echo "NOT FOUND: $2"; return 1; }
   rm -rf .venv
-  { python -m venv --without-pip .venv &&
-    python -m pip --python .venv/bin/python install pip &&
+  { "$PY" -m venv --without-pip .venv &&
+    "$PY" -m pip --python .venv/bin/python install pip &&
     .venv/bin/python -m pip install -e ".[dev]"; } > $E/$2/install.log 2>&1 ||
     { echo "FAILED: $2 - last lines of $E/$2/install.log:"; tail -5 $E/$2/install.log; return 1; }
   source .venv/bin/activate
-  { python --version; pip show anthropic | head -2; } > $E/$2/env.txt 2>&1
+  { python --version; pip show anthropic | grep -E '^(Name|Version):'; } > $E/$2/env.txt 2>&1
   python -c "import os;print('key set:',bool(os.environ.get('ANTHROPIC_API_KEY')),'base:',os.environ.get('ANTHROPIC_BASE_URL'))" >> $E/$2/env.txt
 }
 
