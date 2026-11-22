@@ -1,0 +1,71 @@
+
+#!/usr/bin/env bash
+# Capstone Tasks 1-6: venvs, tests, runs, evidence. Run: bash /workspace/run_all.sh
+E=/workspace/evidence
+mkdir -p $E/system1 $E/system2 $E/system3 $E/system4
+sol() { find /workspace -maxdepth 6 -type d -path "*/$1/solution" | head -1; }
+S1=$(sol 03-dynamic-decomposition)
+S2=$(sol 04-assemble-and-locate)
+S3=$(sol 04-plan-mode-and-explore-decision-doc)
+S4=$(sol 04-fork-scratchpad)
+latest() { ls -td runs/*/ | head -1; }
+
+prep() {
+  echo "=== $2: $1"
+  cd "$1" || { echo "NOT FOUND: $2"; return 1; }
+  python -m venv .venv && source .venv/bin/activate
+  pip install -q -e ".[dev]" > $E/$2/install.log 2>&1
+  { python --version; pip show anthropic | head -2; } > $E/$2/env.txt 2>&1
+  python -c "import os;print('key set:',bool(os.environ.get('ANTHROPIC_API_KEY')),'base:',os.environ.get('ANTHROPIC_BASE_URL'))" >> $E/$2/env.txt
+}
+
+prep "$S1" system1 && {
+  pytest tests/ -v > $E/system1/tests.log 2>&1
+  python -m claims_intake.run --all > $E/system1/run.log 2>&1; echo "exit $?" >> $E/system1/run.log
+  cp -r "$(latest)" $E/system1/run
+  deactivate; }
+
+prep "$S2" system2 && {
+  pytest tests/ -v > $E/system2/tests_before_run.log 2>&1
+  python -m retail_context.run --all > $E/system2/run.log 2>&1; echo "exit $?" >> $E/system2/run.log
+  pytest tests/ -v > $E/system2/tests.log 2>&1
+  cp -r "$(latest)" $E/system2/run
+  deactivate; }
+
+prep "$S3" system3 && {
+  pytest tests/ -v > $E/system3/tests.log 2>&1
+  python -m ecommerce_team_config . > $E/system3/validator.log 2>&1; echo "exit $?" >> $E/system3/validator.log
+  cp -r .claude $E/system3/claude_dir
+  { find . -name CLAUDE.md -not -path './.venv/*'; find .claude -type f; } | sort > $E/system3/claude_tree.txt
+  grep -rnE '^(globs?|paths|context|allowed-tools):' .claude > $E/system3/frontmatter.txt
+  deactivate; }
+
+prep "$S4" system4 && {
+  pytest tests/ -v > $E/system4/tests.log 2>&1
+  [ -f data/warm.sqlite ] || python -c "import json; from pathlib import Path; from shift_monitor.warm import WarmStore; w=WarmStore(Path('data/warm.sqlite')); w.initialize(); w.insert_many(json.load(open('fixtures/defects.json')))"
+  python -m shift_monitor run-shift --shift C --warm-db data/warm.sqlite --since 2026-04-01T00:00:00Z --recorded-response fixtures/recorded_responses/shift_C_2026-04-30.json > $E/system4/shift.log 2>&1
+  wc -c data/hot_state.json > $E/system4/hot_state_size.txt
+  python -c "import json;print('warm-tier total:',len(json.load(open('fixtures/defects.json'))))" >> $E/system4/hot_state_size.txt
+  cp data/hot_state.json $E/system4/
+  find . -name shift_scratchpad.jsonl -not -path './.venv/*' -exec cp {} $E/system4/ \;
+  deactivate; }
+
+cd $E && grep -H ' passed' system*/tests*.log
+cat system3/validator.log system4/hot_state_size.txt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

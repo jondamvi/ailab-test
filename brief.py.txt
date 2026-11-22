@@ -1,0 +1,23 @@
+# brief.py - draft the reflection brief from /workspace/evidence via Claude API
+import os, re, glob, collections, anthropic
+E = '/workspace/evidence'
+tpl = open(glob.glob('/workspace/*/reflection-brief-template.md')[0]).read()
+src = ''
+for p in glob.glob('/workspace/*/**/solution/**/*.py', recursive=True):
+    if '.venv' not in p:
+        src += open(p, errors='ignore').read()
+model = collections.Counter(re.findall(r'claude-(?:sonnet|opus|haiku|3)[a-z0-9-]*', src)).most_common(1)[0][0]
+ev = ''
+for p in sorted(glob.glob(E + '/system*/**/*', recursive=True)):
+    if os.path.isfile(p):
+        ev += f'\n\n=== FILE: {p}\n' + open(p, errors='ignore').read()[:15000]
+prompt = ('Complete this reflection brief template. Answer every prompt in first person, concisely. '
+          'Every answer must cite at least one concrete value from the evidence (run ID, token count, '
+          'claim outcome, file size, trace line) and name its file path relative to the evidence folder '
+          '(system1/..., system2/...). Use only facts present in the evidence; where a fact is missing write [CHECK]. '
+          'Part 2 answers must connect two or more systems. Output only the completed markdown.\n\n'
+          '<template>\n' + tpl + '\n</template>\n<evidence>' + ev[:600000] + '\n</evidence>')
+r = anthropic.Anthropic().messages.create(model=model, max_tokens=8000,
+                                          messages=[{'role': 'user', 'content': prompt}])
+open(E + '/reflection-brief-template.md', 'w').write(r.content[0].text)
+print('model:', model, '| tokens in/out:', r.usage.input_tokens, r.usage.output_tokens)
