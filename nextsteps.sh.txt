@@ -1,0 +1,46 @@
+
+# 1. Cleanup and report
+rm ~/evidence/system2/tests_before_run.log
+echo "Environment failures hit and fixed: (1) Vocareum default Python is 3.10.14, but claims-intake requires >=3.11 (pip: 'requires a different Python'). Fix: installed uv into a separate venv (~/.uvenv) and used 'uv python install 3.11' to get a standalone Python 3.11; every system venv is built from it (see env.txt per system). (2) 'python -m venv .venv' failed because ensurepip returned exit status 1. Fix: created each venv with '--without-pip', installed pip into it with the interpreter's own pip ('python -m pip --python .venv/bin/python install pip'), then ran 'pip install -e \".[dev]\"' as documented." > ~/evidence/system1/setup_notes.md
+
+# 2. Verify all run evidence
+cd ~/evidence && python - <<'EOF'
+import json, glob
+print('== S1', open('system1/run.log').read().strip().splitlines()[-1])
+print(open('system1/run/summary.md').read())
+traces = {t: [json.loads(l) for l in open(t)] for t in glob.glob('system1/run/traces/*.jsonl')}
+t = max(traces, key=lambda k: sum('stop_reason' in e for e in traces[k]))
+print('== S1 trace with most turns:', t)
+for e in traces[t]:
+    if 'stop_reason' in e:
+        print('  turn', e['turn'], e['stop_reason'], [c['name'] for c in e.get('tool_calls', [])])
+print('== S2', open('system2/run.log').read().strip().splitlines()[-1])
+print(open('system2/run/budget.json').read())
+ev = {}
+for name in ('eval', 'eval_control'):
+    ev[name] = {r['question_id']: r['passed'] for r in map(json.loads, open(f'system2/run/{name}.jsonl'))}
+    print(name, sum(ev[name].values()), '/', len(ev[name]))
+print('regressed in control:', [q for q in ev['eval'] if ev['eval'][q] and not ev['eval_control'].get(q)])
+print('== S3'); print(open('system3/frontmatter.txt').read())
+print('== S4'); print(open('system4/shift.log').read())
+print('scratchpad last line:', open('system4/shift_scratchpad.jsonl').read().strip().splitlines()[-1])
+EOF
+
+# 3. Generate the brief draft:
+"$(find ~/cd15315-Claude-AI-Engineer-Harness-Engineering -maxdepth 6 -type d -path '*/03-dynamic-decomposition/solution')/.venv/bin/python" ~/brief.py
+
+# 4. Find the gaps the draft flagged:
+grep -n "CHECK" ~/evidence/reflection-brief-template.md
+
+# 5. Zip and check the layout:
+cd ~/evidence && python -m zipfile -c ~/capstone.zip system1 system2 system3 system4 reflection-brief-template.md && python -m zipfile -l ~/capstone.zip | head
+
+
+
+
+
+
+
+
+
+
