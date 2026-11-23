@@ -91,12 +91,44 @@ for q, text in blocks.items():
     print(f'Q{q}: ' + (f'OK ({ok[0]})' if ok else 'NO RUN ARTIFACT CITED'))
 EOF
 
+# 7.1 FIX Citations:
+cd ~/evidence && python - <<'EOF'
+import re, os, shutil
+p = 'reflection-brief-template.md'
+shutil.copy(p, os.path.expanduser('~/brief_before_citations.md'))
+add = {2: "My run's suite, which includes `tests/test_antipatterns.py`, reported 30 passed (`system1/tests.log`).",
+       3: "The tools the agent called on each turn are recorded in my trace `system1/run/traces/claim_03_water_damage.jsonl`.",
+       12: "My run's suite, which includes `tests/test_us03_crash_recovery.py`, reported 33 passed (`system4/tests.log`).",
+       17: "My test logs show these guarantees held: 30 passed (`system1/tests.log`), 30 passed (`system2/tests.log`), "
+           "35 passed (`system3/tests.log`), 33 passed (`system4/tests.log`)."}
+lines = open(p, encoding='utf-8').read().split('\n')
+heads = [(i, int(m.group(1))) for i, l in enumerate(lines) if (m := re.match(r'\s*(\d+)\.\s+\*\*', l))]
+for k, (start, q) in enumerate(heads):
+    if q not in add:
+        continue
+    end = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
+    body = [i for i in range(start + 1, end) if lines[i].strip()]
+    if not body:
+        print(f'Q{q}: answer is empty, no change'); continue
+    i = body[-1]
+    lines[i] = lines[i].rstrip() + ' ' + add[q]
+    print(f'Q{q}: line {i + 1} now ends with: ...{lines[i][-140:]}\n')
+open(p, 'w', encoding='utf-8').write('\n'.join(lines))
+print('done; backup of the previous version: ~/brief_before_citations.md')
+EOF
+
+# 7.2 Re-run citation check -> 7.
+
+# 7.3. Copy System 3's CLAUDE.md into the evidence. Running this a second time is harmless.
+cp "$(find ~/cd15315-Claude-AI-Engineer-Harness-Engineering -maxdepth 6 -type d -path '*/04-plan-mode-and-explore-decision-doc/solution')/CLAUDE.md" ~/evidence/system3/
+
+# 7.4 Zip it:
+cd ~/evidence && rm -f ~/capstone.zip && python -m zipfile -c ~/capstone.zip system1 system2 system3 system4 reflection-brief-template.md && python -m zipfile -l ~/capstone.zip | grep -E '^(reflection|system3/CLAUDE)'
 
 
-# 8. Zip it:
-cd ~/evidence && python -m zipfile -c ~/capstone.zip system1 system2 system3 system4 reflection-brief-template.md && python -m zipfile -l ~/capstone.zip | grep -E '^(reflection|system3/CLAUDE)'
+Success: both reflection-brief-template.md and system3/CLAUDE.md are listed. The rm -f removes any older zip first.
 
-# 9. In the Explorer, right-click capstone.zip → Download, then upload it in the classroom.
+# 7.5. Submit. In the Explorer, right-click capstone.zip in the WORK root → Download, then upload it in the classroom.
 
 
 
