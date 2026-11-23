@@ -1,26 +1,39 @@
-# brief.py - draft the reflection brief from ~/evidence via Claude API
-import os, glob, anthropic
-H = os.path.expanduser('~')
-W = H + '/cd15315-Claude-AI-Engineer-Harness-Engineering'
-E = H + '/evidence'
+# brief.py v2 - draft the brief from ~/evidence plus the four systems' source code
+import os, glob, datetime, anthropic
+H = os.path.expanduser('~'); W = H + '/cd15315-Claude-AI-Engineer-Harness-Engineering'; E = H + '/evidence'
 tpl = open(glob.glob(W + '/**/reflection-brief-template.md', recursive=True)[0]).read()
-ev = ''
-for p in sorted(glob.glob(E + '/system*/**/*', recursive=True)):
-    if os.path.isfile(p):
-        ev += f'\n\n=== FILE: {p}\n' + open(p, errors='ignore').read()[:15000]
-prompt = ('Complete this reflection brief template. Answer every prompt in first person, concisely. '
-          'Every answer must cite at least one concrete value from the evidence (run ID, token count, '
-          'claim outcome, file size, trace line) and name its file path relative to the evidence folder '
-          '(system1/..., system2/...). Use only facts present in the evidence; where a fact is missing write [CHECK]. '
-          'Part 2 answers must connect two or more systems. Output only the completed markdown.\n\n'
-          '<template>\n' + tpl + '\n</template>\n<evidence>' + ev[:600000] + '\n</evidence>')
+rd = lambda p: open(p, errors='ignore').read()[:20000]
+ev = ''.join(f'\n\n=== EVIDENCE {os.path.relpath(p, E)}\n' + rd(p)
+             for p in sorted(glob.glob(E + '/system*/**/*', recursive=True)) if os.path.isfile(p))
+src = ''
+for n, ex in enumerate(['03-dynamic-decomposition', '04-assemble-and-locate',
+                        '04-plan-mode-and-explore-decision-doc', '04-fork-scratchpad'], 1):
+    sol = glob.glob(W + '/**/' + ex + '/solution', recursive=True)[0]
+    fs = [p for p in glob.glob(sol + '/**/*', recursive=True) if p.endswith(('.py', '.md')) and '/runs/' not in p]
+    up = [os.path.dirname(sol), os.path.dirname(os.path.dirname(sol)), os.path.dirname(os.path.dirname(os.path.dirname(sol)))]
+    fs += [d + '/README.md' for d in up if d.startswith(W + '/') and os.path.isfile(d + '/README.md')]
+    src += ''.join(f'\n\n=== SOURCE system{n}: {os.path.relpath(p, sol)}\n' + rd(p) for p in sorted(set(fs)))
+rules = f'''Complete this reflection brief template. Today is {datetime.date.today()}.
+Keep the template headings and numbering; replace each arrow placeholder with a 3-6 sentence answer.
+Hard rules:
+1. Every answer cites at least one run artifact by its EVIDENCE path exactly as labelled (e.g. system1/run/summary.md).
+   SOURCE files may also be cited by their path as labelled (e.g. claims_intake/loop.py).
+2. Use only numbers that appear verbatim in EVIDENCE or SOURCE. A derived value is allowed only as a ratio or
+   percentage whose two input numbers appear in the same sentence. No projections, assumed rates or estimates.
+3. Facts about code, tests, thresholds, functions and READMEs come only from SOURCE. Never guess.
+4. Do not cite line numbers of files.
+5. If a requested fact is in neither EVIDENCE nor SOURCE, write [CHECK] instead of guessing.
+6. Name: [CHECK]. Approx. API spend: sum the costs found in EVIDENCE, otherwise [CHECK].
+7. Each Part 2 answer cites named files from at least two systems.
+Output only the completed markdown.'''
+prompt = rules + '\n<template>\n' + tpl + '\n</template>\n<evidence>' + ev + '\n</evidence>\n<source>' + src + '\n</source>'
+print('prompt chars:', len(prompt))
 client = anthropic.Anthropic()
 for model in ('claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001'):
     try:
-        r = client.messages.create(model=model, max_tokens=8000,
-                                   messages=[{'role': 'user', 'content': prompt}])
+        r = client.messages.create(model=model, max_tokens=12000, messages=[{'role': 'user', 'content': prompt}])
         break
     except anthropic.APIStatusError as err:
         print('model', model, 'failed:', err.status_code)
 open(E + '/reflection-brief-template.md', 'w').write(r.content[0].text)
-print('model:', model, '| tokens in/out:', r.usage.input_tokens, r.usage.output_tokens)
+print('model:', model, '| tokens in/out:', r.usage.input_tokens, r.usage.output_tokens, '| stop:', r.stop_reason)

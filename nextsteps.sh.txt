@@ -1,24 +1,16 @@
-cd ~/evidence && python - <<'EOF'
-import re, glob, os
-files = {p: open(p, errors='ignore').read().replace(',', '')
-         for p in glob.glob('system*/**/*', recursive=True) if os.path.isfile(p)}
-alltext = '\n'.join(files.values())
-for i, line in enumerate(open('reflection-brief-template.md').read().splitlines(), 1):
-    cited = re.findall(r'system\d+/[\w./-]*\w', line)
-    for c in cited:
-        if not os.path.exists(c):
-            print(f'line {i}: path {c} does not exist')
-    scope = '\n'.join(v for k, v in files.items()
-                      if any(k == c or k.startswith(c + '/') for c in cited)) or alltext
-    bare = line
-    for c in cited:
-        bare = bare.replace(c, ' ')
-    for n in re.findall(r'\d[\d,]*(?:\.\d+)?', bare):
-        n2 = n.replace(',', '')
-        if len(n2.replace('.', '')) < 2:
-            continue
-        if not re.search(r'(?<![\d.])' + re.escape(n2) + r'(?![\d])', scope):
-            where = 'its cited file(s)' if cited else 'any evidence file'
-            print(f'line {i}: {n} not in {where} | {line.strip()[:160]}')
-EOF
-cat system2/run/budget.json
+
+# 0. Cleanup
+mv ~/evidence/reflection-brief-template.md ~/brief_draft1.md
+
+# 4. Generate new template
+"$(find ~/cd15315-Claude-AI-Engineer-Harness-Engineering -maxdepth 6 -type d -path '*/03-dynamic-decomposition/solution')/.venv/bin/python" ~/brief.py
+
+# 5. Check the new draft:
+cd ~/evidence && python ~/check_brief.py; grep -n "CHECK" reflection-brief-template.md
+
+# 6. Zip and submit
+cd ~/evidence && python -m zipfile -c ~/capstone.zip system1 system2 system3 system4 reflection-brief-template.md && python -m zipfile -l ~/capstone.zip | head
+
+
+
+

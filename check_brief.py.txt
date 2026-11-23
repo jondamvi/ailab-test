@@ -1,0 +1,30 @@
+# check_brief.py - flag numbers and paths in the brief that no evidence or source file supports
+import os, re, glob
+H = os.path.expanduser('~'); W = H + '/cd15315-Claude-AI-Engineer-Harness-Engineering'; E = H + '/evidence'
+NUM, CITE = r'\d+(?:[.,]\d+)*', r'[\w.~-]*(?:/[\w.-]+)*\.(?:py|md|jsonl|json|txt|log)\b'
+norm = lambda s: re.sub(r'(?<=\d),(?=\d{3})', '', s)
+has = lambda n, t: re.search(r'(?<![\d.])' + re.escape(n) + r'(?!\d|\.\d)', t)
+
+def derivable(n, nums):
+    v = [float(x) for x in nums if x != n and x.count('.') <= 1]
+    d = len(n.split('.')[1]) if '.' in n else 0
+    return any(round(c, d) == round(float(n), d) for a in v for b in v if b and a != b
+               for c in (a / b * 100, (1 - a / b) * 100, (a - b) / b * 100, a / b))
+
+os.chdir(E)
+ev = [p for p in glob.glob('system*/**/*', recursive=True) if os.path.isfile(p)]
+src = [p for p in glob.glob(W + '/**/solution/**/*', recursive=True) if p.endswith(('.py', '.md')) and '/runs/' not in p]
+alltext = norm('\n'.join(open(p, errors='ignore').read() for p in ev + src))
+tplnums = set(re.findall(NUM, norm(open(glob.glob(W + '/**/reflection-brief-template.md', recursive=True)[0]).read())))
+for i, raw in enumerate(open('reflection-brief-template.md').read().splitlines(), 1):
+    line = norm(raw)
+    for c in re.findall(CITE, line):
+        line = line.replace(c, ' ')
+        c = c.split('evidence/')[-1]
+        if c not in ev and not any(p.endswith('/' + c) for p in src):
+            print(f'line {i}: cited path {c} does not exist')
+    nums = re.findall(NUM, line)
+    for n in nums:
+        if n not in tplnums and len(n.replace('.', '')) > 1 and not has(n, alltext) and not derivable(n, nums):
+            print(f'line {i}: {n} is in no evidence/source file | {raw.strip()[:100]}')
+print('check done')
