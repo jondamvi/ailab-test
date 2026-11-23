@@ -32,13 +32,46 @@ if len(hits) == 1:
 EOF
 
 
-# 5. Small edits:
-Line 52: if it says the project has a tests/CLAUDE.md, change it to "a directory-level tests/CLAUDE.md would…". If it already reads as a hypothetical, leave it.
-Line 100: delete (~240 tokens).
-Line 110: change run_dir/escalations.jsonl to system1/run/escalations.jsonl.
-Line 118: change env.txt to system1/env.txt.
-Line 122: delete the sentence containing 24000.
-Then save with Ctrl+S.
+# 5. Small edits FIX:
+cd ~/evidence && python - <<'EOF'
+import re, shutil, os
+p = 'reflection-brief-template.md'
+shutil.copy(p, os.path.expanduser('~/brief_before_fixes.md'))
+lines = open(p, encoding='utf-8').read().split('\n')
+fixes = [('remove the ~240 token estimate', lambda s: re.sub(r'\s*\(~240[^)]*\)', '', s)),
+         ('fix escalations.jsonl path', lambda s: s.replace('run_dir/escalations.jsonl', 'system1/run/escalations.jsonl')),
+         ('fix env.txt path', lambda s: re.sub(r'(?<![\w/])env\.txt', 'system1/env.txt', s))]
+for what, fn in fixes:
+    changed = 0
+    for i, old in enumerate(lines):
+        new = fn(old)
+        if new != old:
+            lines[i] = new; changed += 1
+            print(f'--- {what}, line {i + 1}\nBEFORE: {old.strip()}\nAFTER:  {new.strip()}\n')
+    if not changed:
+        print(f'--- {what}: nothing found, no change\n')
+q20 = [i for i, l in enumerate(lines) if re.match(r'\s*20\.\s+\*\*', l)]
+new20 = ("I'd change System 2's choice to keep the entire active segment verbatim. In `system2/run/budget.json` the active "
+         "section is 15789 of the 16890 assembled tokens (93.5%), while the resolved segments were summarized from 12334 to 380 "
+         "and from 11475 to 535 tokens, so the assembled context is bounded by the active section: a longer active issue grows "
+         "the context almost token for token. I'd keep the case-facts block and the most recent turns verbatim, because "
+         "`system2/run/eval_control.jsonl` shows Q6 fails once the facts block is removed, and compress only the older part of "
+         "the active segment. Before adopting it I'd run the experiment System 2's README lists under \"What I'd do next\" "
+         "(summarize the active segment too) and require Q3 and Q4 to still pass, since that is where the README expects "
+         "fidelity loss.")
+if len(q20) == 1:
+    print('--- Q20 answer, old text removed:')
+    print('\n'.join(l.strip()[:150] for l in lines[q20[0] + 1:] if l.strip()))
+    lines = lines[:q20[0] + 1] + ['   ' + new20, '']
+    print('--- Q20 answer replaced\n')
+else:
+    print(f'--- Q20 header found {len(q20)} times, no change')
+open(p, 'w', encoding='utf-8').write('\n'.join(lines))
+print('done; backup of the previous version: ~/brief_before_fixes.md')
+EOF
+
+
+
 
 # 6. Copy System 3's CLAUDE.md into the evidence:
 cp "$(find ~/cd15315-Claude-AI-Engineer-Harness-Engineering -maxdepth 6 -type d -path '*/04-plan-mode-and-explore-decision-doc/solution')/CLAUDE.md" ~/evidence/system3/
