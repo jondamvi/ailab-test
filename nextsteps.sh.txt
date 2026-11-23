@@ -36,7 +36,23 @@ grep -n "CHECK" ~/evidence/reflection-brief-template.md
 cd ~/evidence && python -m zipfile -c ~/capstone.zip system1 system2 system3 system4 reflection-brief-template.md && python -m zipfile -l ~/capstone.zip | head
 
 
-
+# cross-check evidence:
+cd ~/evidence && grep -n "CHECK" reflection-brief-template.md; python - <<'EOF'
+import re, glob, os
+brief = open('reflection-brief-template.md').read().splitlines()
+text = ''
+for p in glob.glob('system*/**/*', recursive=True):
+    if os.path.isfile(p):
+        text += open(p, errors='ignore').read().replace(',', '')
+for i, line in enumerate(brief, 1):
+    for n in re.findall(r'\d[\d,]*(?:\.\d+)?', line):
+        n2 = n.replace(',', '')
+        if len(n2) >= 2 and n2 not in text:
+            print(f'line {i}: number {n} not found in evidence')
+    for p in re.findall(r'system[1-4]/[\w./-]*\w', line):
+        if not os.path.exists(p):
+            print(f'line {i}: path {p} does not exist')
+EOF
 
 
 
