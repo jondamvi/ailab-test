@@ -11,6 +11,62 @@ cd ~/evidence && python ~/check_brief.py; grep -n "CHECK" reflection-brief-templ
 # 6. Zip and submit
 cd ~/evidence && python -m zipfile -c ~/capstone.zip system1 system2 system3 system4 reflection-brief-template.md && python -m zipfile -l ~/capstone.zip | head
 
+# ----------------------------------
+
+# Fix brief template:
+cd ~/evidence && python - <<'EOF'
+p = 'reflection-brief-template.md'
+new = ("From `system1/run/summary.md`, claim_03_water_damage: 7 turns, 26028 input tokens, 1271 output tokens, est. cost $0.0324. "
+       "The README (`exercises/03-dynamic-decomposition/README.md`) expects summary.md to show 7 routed, 1 escalated at an estimated "
+       "≈ $0.05 on Haiku 4.5 for the whole run, i.e. ~$0.00625 per claim over 8 claims; claim_03 alone cost 5.2x that, and my full run "
+       "cost $0.1451 (`system1/run.log`). The gap comes from turn count: each turn resends the whole conversation, so input tokens grow "
+       "with every turn, and claim_03 needed 7 turns (`system1/run/traces/claim_03_water_damage.jsonl`).")
+lines = open(p, encoding='utf-8').read().split('\n')
+hits = [i for i, l in enumerate(lines) if 'claim_03_water_damage: 7 turns' in l]
+print('matching lines:', [i + 1 for i in hits])
+if len(hits) == 1:
+    l = lines[hits[0]]
+    lines[hits[0]] = l[:l.find('From')] + new
+    open(p, 'w', encoding='utf-8').write('\n'.join(lines))
+    print('line', hits[0] + 1, 'replaced')
+EOF
+
+
+# 5. Small edits:
+Line 52: if it says the project has a tests/CLAUDE.md, change it to "a directory-level tests/CLAUDE.md would…". If it already reads as a hypothetical, leave it.
+Line 100: delete (~240 tokens).
+Line 110: change run_dir/escalations.jsonl to system1/run/escalations.jsonl.
+Line 118: change env.txt to system1/env.txt.
+Line 122: delete the sentence containing 24000.
+Then save with Ctrl+S.
+
+# 6. Copy System 3's CLAUDE.md into the evidence:
+cp "$(find ~/cd15315-Claude-AI-Engineer-Harness-Engineering -maxdepth 6 -type d -path '*/04-plan-mode-and-explore-decision-doc/solution')/CLAUDE.md" ~/evidence/system3/
+
+# 7. Check that every answer cites a run artifact:
+cd ~/evidence && python - <<'EOF'
+import os, re
+blocks, cur = {}, None
+for line in open('reflection-brief-template.md'):
+    m = re.match(r'\s*(\d+)\.\s+\*\*', line)
+    if m:
+        cur = int(m.group(1)); blocks[cur] = ''
+    elif cur is not None:
+        blocks[cur] += line
+for q, text in blocks.items():
+    ok = [p for p in re.findall(r'system[1-4]/[\w./-]*\w', text) if os.path.isfile(p)]
+    print(f'Q{q}: ' + (f'OK ({ok[0]})' if ok else 'NO RUN ARTIFACT CITED'))
+EOF
+
+
+
+# 8. Zip it:
+cd ~/evidence && python -m zipfile -c ~/capstone.zip system1 system2 system3 system4 reflection-brief-template.md && python -m zipfile -l ~/capstone.zip | grep -E '^(reflection|system3/CLAUDE)'
+
+# 9. In the Explorer, right-click capstone.zip → Download, then upload it in the classroom.
+
+
+
 
 
 
